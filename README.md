@@ -1,10 +1,30 @@
+<div align="center">
+
 # pi-referee
 
-A second model referees every tool call the [pi coding agent](https://pi.dev) makes, against policies you switch on per session. Calls that clearly follow your policies run. Calls that look risky, mistaken, or off-task come to you for approval.
+**A second model referees your [pi](https://pi.dev) coding agent's tool calls.**<br>
+Safe calls run. Risky, mistaken, or off-task calls come to you.
 
-It is built for running pi on a model you only partly trust (for example, a local model) while a fast, cheap model keeps an eye on it.
+[![CI](https://github.com/njbrake/pi-referee/actions/workflows/ci.yml/badge.svg)](https://github.com/njbrake/pi-referee/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/njbrake/pi-referee/actions/workflows/codeql.yml/badge.svg)](https://github.com/njbrake/pi-referee/actions/workflows/codeql.yml)
+[![npm](https://img.shields.io/npm/v/pi-referee?color=cb3837&logo=npm)](https://www.npmjs.com/package/pi-referee)
+[![pi package](https://img.shields.io/badge/pi-package-6c5ce7)](https://pi.dev/packages)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-<!-- TODO: add a screenshot or GIF of the status line and an approval prompt, then set "pi.image" in package.json -->
+<img src="https://raw.githubusercontent.com/njbrake/pi-referee/main/docs/demo.gif" alt="pi-referee in pi: a reviewed command runs, a force push asks for approval, and the status line is clicked" width="820">
+
+</div>
+
+pi-referee is built for running pi on a model you only partly trust (for example, a local model) while a fast, cheap model keeps an eye on it.
+
+## Features
+
+- **Per-session policies.** Plain-language rules like `safe` and `correct`, switched on or off for each session.
+- **Escalation, not silent blocking.** Doubtful calls ask you, with the reviewer's reason.
+- **Small reviewer context.** The reviewer sees your latest message, the agent's reasoning before the call, and the call. Nothing else.
+- **Always-ask backstop.** Force pushes, `sudo`, piping downloads into a shell, and similar calls never go to the reviewer.
+- **Live, clickable status line and dialogs.** Watch reviews happen, and click to change policies, answer approvals, or read recent decisions.
+- **Tunable inside pi.** `/guard config` edits policies, patterns, the reviewer model, and settings. Every decision is logged.
 
 ## How it works
 
@@ -75,7 +95,9 @@ It shows `◆ reviewing <call>…` while the reviewer works and a short result (
 - **A policy tag** opens this session's policy checklist.
 - **The counts** open recent decisions.
 
-In other modes the same summary appears as plain text in pi's footer.
+The dialogs these open (menus, the policy checklist, approval prompts) are clickable too, and keep working with the keyboard.
+
+In other modes the same summary appears as plain text in pi's footer, and dialogs use pi's standard select prompt.
 
 ## Policies
 

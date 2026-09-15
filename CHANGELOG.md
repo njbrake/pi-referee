@@ -8,4 +8,6 @@
 - Reviewer `block` verdicts ask you by default (`onBlockVerdict`).
 - `/guard config` editor for policies, patterns, reviewer model, and settings.
 - Status line with live review state, counts, and clickable segments in fullscreen mode.
+- Clickable dialogs (menus, policy checklist, approval prompts) in fullscreen mode, with a plain select fallback in other modes.
+- Demo GIF in the README.
 - Decision log at `~/.pi/agent/pi-referee/reviews.jsonl` for tuning.

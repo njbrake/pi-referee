@@ -491,6 +491,7 @@ export default function piGuard(pi: ExtensionAPI) {
 	let statusUi: any;
 	let uiCtx: any;
 	let tuiModule: any;
+	let codingAgentModule: any;
 	let widgetTui: any;
 	let widgetTheme: any;
 	let widgetInstalled = false;
@@ -628,6 +629,73 @@ export default function piGuard(pi: ExtensionAPI) {
 		}
 	};
 
+	type ChoiceItem = { value: string; label: string; description?: string };
+
+	/**
+	 * Shows a list dialog and resolves with the chosen value, or undefined when cancelled.
+	 * In the TUI it renders pi-tui's SelectList, which fullscreen mode makes clickable;
+	 * other modes use pi's built-in select dialog.
+	 */
+	const choose = async (ctx: any, title: string, options: Array<string | ChoiceItem>): Promise<string | undefined> => {
+		const items: ChoiceItem[] = options.map((o) => (typeof o === "string" ? { value: o, label: o } : o));
+		const canRender =
+			ctx.mode === "tui" &&
+			typeof ctx.ui.custom === "function" &&
+			tuiModule?.SelectList &&
+			tuiModule?.Container &&
+			typeof codingAgentModule?.getSelectListTheme === "function";
+		if (!canRender) {
+			const labels = items.map((i) => (i.description ? `${i.label} — ${i.description}` : i.label));
+			const picked = await ctx.ui.select(title, labels);
+			return picked === undefined ? undefined : items[labels.indexOf(picked)]?.value;
+		}
+		const { Container, SelectList, Spacer, Text } = tuiModule;
+		const { DynamicBorder, getSelectListTheme, keyHint, rawKeyHint } = codingAgentModule;
+		return ctx.ui.custom((_tui: any, theme: any, _keybindings: any, done: (value: string | undefined) => void) => {
+			let finished = false;
+			const finish = (value: string | undefined) => {
+				if (finished) return;
+				finished = true;
+				done(value);
+			};
+			const list = new SelectList(items, Math.min(items.length, 12), getSelectListTheme(), {
+				minPrimaryColumnWidth: 12,
+				maxPrimaryColumnWidth: 36,
+			});
+			list.onSelect = (item: ChoiceItem) => finish(item.value);
+			list.onCancel = () => finish(undefined);
+			// Indent the list one column to line up with the title; clicks only use the row.
+			const indentedList = {
+				render: (width: number) => list.render(Math.max(1, width - 1)).map((line: string) => ` ${line}`),
+				invalidate: () => list.invalidate(),
+				handleMouse: (event: any) => list.handleMouse(event),
+			};
+			const hint = (key: string, action: string) => (typeof rawKeyHint === "function" ? rawKeyHint(key, action) : `${key} ${action}`);
+			const hints = [
+				hint("↑↓", "navigate"),
+				typeof keyHint === "function" ? keyHint("tui.select.confirm", "select") : "enter select",
+				hint("click", "select"),
+				typeof keyHint === "function" ? keyHint("tui.select.cancel", "cancel") : "esc cancel",
+			].join("  ");
+			const box = new Container();
+			if (DynamicBorder) box.addChild(new DynamicBorder());
+			box.addChild(new Spacer(1));
+			box.addChild(new Text(theme.fg("accent", theme.bold(title)), 1, 0));
+			box.addChild(new Spacer(1));
+			box.addChild(indentedList);
+			box.addChild(new Spacer(1));
+			box.addChild(new Text(hints, 1, 0));
+			box.addChild(new Spacer(1));
+			if (DynamicBorder) box.addChild(new DynamicBorder());
+			return {
+				render: (width: number) => box.render(width),
+				invalidate: () => box.invalidate(),
+				handleInput: (data: string) => list.handleInput(data),
+				handleMouse: (event: any) => box.handleMouse(event),
+			};
+		});
+	};
+
 	const describe = (): string => {
 		if (!state.enabled) return "pi-referee is off for this session. Turn it back on with /guard on.";
 		const active = activeRulesFor(config, state).map((r) => r.id);
@@ -646,14 +714,18 @@ export default function piGuard(pi: ExtensionAPI) {
 
 	const policiesDialog = async (ctx: any) => {
 		for (;;) {
-			const done = "Done";
-			const options = config.rules.map((r) => {
-				const on = state.rules[r.id] ?? r.enabled;
-				return `${on ? "[x]" : "[ ]"} ${r.id} — ${oneLine(r.text, 70)}`;
-			});
-			const choice = await ctx.ui.select("pi-referee policies for this session (select to toggle)", [...options, done]);
+			const done = "__done__";
+			const items = config.rules.map((r) => ({
+				value: r.id,
+				label: `${(state.rules[r.id] ?? r.enabled) ? "[x]" : "[ ]"} ${r.id}`,
+				description: oneLine(r.text, 120),
+			}));
+			const choice = await choose(ctx, "pi-referee policies for this session (click or select to toggle)", [
+				...items,
+				{ value: done, label: "Done" },
+			]);
 			if (!choice || choice === done) break;
-			const rule = config.rules[options.indexOf(choice)];
+			const rule = config.rules.find((r) => r.id === choice);
 			if (rule) {
 				state.rules[rule.id] = !(state.rules[rule.id] ?? rule.enabled);
 				updateStatus(ctx);
@@ -671,7 +743,7 @@ export default function piGuard(pi: ExtensionAPI) {
 		for (;;) {
 			const items = [...recent].reverse();
 			const labels = items.map((d, i) => `${String(i + 1).padStart(2)}. ${d.icon} ${d.label} — ${d.outcome}`);
-			const choice = await ctx.ui.select(
+			const choice = await choose(ctx, 
 				`pi-referee: recent decisions (${counts.allowed} allowed, ${counts.asked} asked you, ${counts.blocked} blocked)`,
 				[...labels, "Back"],
 			);
@@ -685,13 +757,13 @@ export default function piGuard(pi: ExtensionAPI) {
 				"",
 				truncate(d.call, 1500),
 			].join("\n");
-			await ctx.ui.select(details, ["Back"]);
+			await choose(ctx, details, ["Back"]);
 		}
 	};
 
 	const guardMenu = async (ctx: any) => {
 		const toggle = state.enabled ? "Turn the guard off for this session" : "Turn the guard on for this session";
-		const choice = await ctx.ui.select(describe(), [toggle, "Policies for this session…", "Recent decisions…", "Config…", "Close"]);
+		const choice = await choose(ctx, describe(), [toggle, "Policies for this session…", "Recent decisions…", "Config…", "Close"]);
 		if (choice === toggle) setEnabled(ctx, !state.enabled);
 		else if (choice === "Policies for this session…") await policiesDialog(ctx);
 		else if (choice === "Recent decisions…") await recentDialog(ctx);
@@ -740,6 +812,13 @@ export default function piGuard(pi: ExtensionAPI) {
 				tuiModule = await import("@earendil-works/pi-tui");
 			} catch {
 				tuiModule = null; // fall back to a plain footer status
+			}
+		}
+		if (ctx.mode === "tui" && codingAgentModule === undefined) {
+			try {
+				codingAgentModule = await import("@earendil-works/pi-coding-agent");
+			} catch {
+				codingAgentModule = null; // fall back to pi's built-in select dialog
 			}
 		}
 		updateStatus(ctx);
@@ -858,7 +937,7 @@ export default function piGuard(pi: ExtensionAPI) {
 		} else {
 			const heading = reviewerVerdict === "block" ? "pi-referee: reviewer recommends blocking" : "pi-referee: approval needed";
 			const title = `${heading}\n${decision.reason || "no reason given"}${ruleText}\n\n${truncate(call, 1500)}`;
-			const choice = await ctx.ui.select(title, ["Allow", "Block", "Block and tell the agent why"]);
+			const choice = await choose(ctx, title, ["Allow", "Block", "Block and tell the agent why"]);
 			if (choice === "Allow") {
 				outcome = "user-allowed";
 			} else {
@@ -946,7 +1025,7 @@ export default function piGuard(pi: ExtensionAPI) {
 	const rulesMenu = async (ctx: any) => {
 		for (;;) {
 			const labels = config.rules.map((r) => `${r.enabled ? "[on] " : "[off]"} ${r.id} — ${oneLine(r.text, 60)}`);
-			const choice = await ctx.ui.select(
+			const choice = await choose(ctx, 
 				"Policies: [on]/[off] is the default for new sessions (/guard policies toggles the current session)",
 				[...labels, "+ Add policy", "Back"],
 			);
@@ -968,7 +1047,7 @@ export default function piGuard(pi: ExtensionAPI) {
 			const rule = config.rules[labels.indexOf(choice)];
 			if (!rule) continue;
 			const toggleLabel = rule.enabled ? "Make it off by default" : "Make it on by default";
-			const action = await ctx.ui.select(`Policy "${rule.id}"\n\n${rule.text}`, [
+			const action = await choose(ctx, `Policy "${rule.id}"\n\n${rule.text}`, [
 				toggleLabel,
 				"Edit text…",
 				"Rename…",
@@ -1023,7 +1102,7 @@ export default function piGuard(pi: ExtensionAPI) {
 	};
 
 	const askTool = async (ctx: any, current?: string): Promise<string | undefined> => {
-		const tool = await ctx.ui.select(`Which tool does this pattern apply to?${current ? ` (currently ${current})` : ""}`, [
+		const tool = await choose(ctx, `Which tool does this pattern apply to?${current ? ` (currently ${current})` : ""}`, [
 			"bash (matches the command)",
 			"write (matches the path)",
 			"edit (matches the path)",
@@ -1037,7 +1116,7 @@ export default function piGuard(pi: ExtensionAPI) {
 	const patternsMenu = async (ctx: any) => {
 		for (;;) {
 			const labels = config.alwaysAsk.map((p) => `${p.tool}: ${p.id} — /${oneLine(p.pattern, 50)}/`);
-			const choice = await ctx.ui.select("Always-ask patterns: a match skips the reviewer and always asks you", [
+			const choice = await choose(ctx, "Always-ask patterns: a match skips the reviewer and always asks you", [
 				...labels,
 				"+ Add pattern",
 				"Test a command or path…",
@@ -1072,7 +1151,7 @@ export default function piGuard(pi: ExtensionAPI) {
 
 			const entry = config.alwaysAsk[labels.indexOf(choice)];
 			if (!entry) continue;
-			const action = await ctx.ui.select(`Pattern "${entry.id}" (${entry.tool})\n\n/${entry.pattern}/`, [
+			const action = await choose(ctx, `Pattern "${entry.id}" (${entry.tool})\n\n/${entry.pattern}/`, [
 				"Edit regex…",
 				"Change tool…",
 				"Delete",
@@ -1109,7 +1188,7 @@ export default function piGuard(pi: ExtensionAPI) {
 							(m: any) => `${m.provider}/${m.id}`,
 						);
 						const manual = "Enter manually…";
-						const choice = await ctx.ui.select("Reviewer model (a fast model works best)", [...available, manual]);
+						const choice = await choose(ctx, "Reviewer model (a fast model works best)", [...available, manual]);
 						if (!choice) return;
 						const spec = choice === manual ? (await ctx.ui.input("provider/model-id", config.reviewerModel))?.trim() : choice;
 						if (!spec) return;
@@ -1193,7 +1272,7 @@ export default function piGuard(pi: ExtensionAPI) {
 				[
 					"Reviewer instructions…",
 					async () => {
-						const action = await ctx.ui.select("Reviewer instructions (the active policies are appended automatically)", [
+						const action = await choose(ctx, "Reviewer instructions (the active policies are appended automatically)", [
 							"Edit…",
 							"Reset to default",
 							"Back",
@@ -1228,13 +1307,13 @@ export default function piGuard(pi: ExtensionAPI) {
 								applyConfig(ctx, mergeWithDefaults(parsed as Partial<GuardConfig>), "config saved");
 								return;
 							}
-							const again = await ctx.ui.select(`Not saved:\n- ${problems.slice(0, 5).join("\n- ")}`, ["Edit again", "Discard changes"]);
+							const again = await choose(ctx, `Not saved:\n- ${problems.slice(0, 5).join("\n- ")}`, ["Edit again", "Discard changes"]);
 							if (again !== "Edit again") return;
 						}
 					},
 				],
 			];
-			const choice = await ctx.ui.select(`pi-referee config — changes save immediately to ${configPath()}`, [
+			const choice = await choose(ctx, `pi-referee config — changes save immediately to ${configPath()}`, [
 				...items.map(([label]) => label),
 				"Done",
 			]);

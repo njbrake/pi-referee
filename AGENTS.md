@@ -14,6 +14,7 @@ source directly; there is no build step.
   default export wires pi events (`session_start`, `tool_call`,
   `session_shutdown`), the status line, dialogs, and the `/guard` command.
 - `tests/pi-referee.test.ts`: Bun unit tests for the exported helpers.
+- `docs/demo.gif`: the README demo.
 - `README.md`: user documentation and the configuration reference.
 - pi's extension API docs ship inside the installed pi package under
   `docs/` (`extensions.md`, `tui.md`, `rpc.md`, `packages.md`). Read them before
@@ -53,6 +54,8 @@ dialogs from a script (see pi's `rpc.md`).
   "rules" so existing configs stay valid.
 - The status line must keep its plain `setStatus` fallback for RPC and print
   modes.
+- Show list dialogs with `choose()`, not `ctx.ui.select` directly. It renders a
+  clickable `SelectList` in the TUI and falls back to `ctx.ui.select` elsewhere.
 - Keep comments short and precise. Do not use em dashes or `--` as prose
   separators in docs and comments.
 - Never add personal data, hostnames, API keys, or model names from your own

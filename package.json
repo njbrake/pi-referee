@@ -41,6 +41,7 @@
   "pi": {
     "extensions": [
       "./extensions"
-    ]
+    ],
+    "image": "https://raw.githubusercontent.com/njbrake/pi-referee/main/docs/demo.gif"
   }
 }
