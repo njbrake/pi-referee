@@ -84,7 +84,11 @@ manually or with a scripted RPC session. Describe how you checked it in the PR.
 
 Bump `version` in `package.json`, move the changelog entries under that
 version, and push a `vX.Y.Z` tag. The release workflow runs the tests, checks
-that the tag matches `package.json`, and publishes to npm with provenance.
+that the tag matches `package.json`, and publishes to npm through npm trusted
+publishing (OIDC), which also adds provenance. No npm token is stored anywhere;
+the trusted publisher on npmjs.com is tied to `release.yml`, so keep that
+filename. To retry a failed release, run the Release workflow from the Actions
+tab with the release tag selected.
 
 ## Stored data
 
