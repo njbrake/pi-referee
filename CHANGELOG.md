@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-09-15)
 
 - Review each tool call with a separate reviewer model that sees only your latest message, the agent's reasoning right before the call, and the call.
 - Plain-language policies (`safe`, `correct`, and optional ones) toggled per session with `/guard policies`.
