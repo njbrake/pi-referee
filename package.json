@@ -1,0 +1,46 @@
+{
+  "name": "pi-referee",
+  "version": "0.1.0",
+  "description": "A second model referees the pi coding agent's tool calls against per-session policies: safe calls run, risky or doubtful ones ask you.",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "guardrails",
+    "auto-mode",
+    "tool-approval",
+    "reviewer"
+  ],
+  "license": "MIT",
+  "author": "njbrake (https://github.com/njbrake)",
+  "homepage": "https://github.com/njbrake/pi-referee#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/njbrake/pi-referee.git"
+  },
+  "bugs": {
+    "url": "https://github.com/njbrake/pi-referee/issues"
+  },
+  "type": "module",
+  "files": [
+    "extensions",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  }
+}

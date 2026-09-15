@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  # No branch filter, so stacked PRs that target another branch still get checks.
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - run: bun test
+
+  build:
+    name: Build check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      # pi loads the TypeScript source directly; bundling catches syntax and import errors.
+      - run: bun build ./extensions/pi-referee.ts --target=node --external '@earendil-works/*' --outdir "$RUNNER_TEMP/build"
+
+  package:
+    name: Package contents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Check published files
+        run: |
+          set -euo pipefail
+          files="$(npm pack --dry-run --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const f of JSON.parse(s)[0].files)console.log(f.path)})')"
+          printf '%s\n' "$files"
+          grep -qx 'extensions/pi-referee.ts' <<<"$files" || { echo "::error::extensions/pi-referee.ts is missing from the package"; exit 1; }
+          if grep -qE '^(tests/|\.github/)' <<<"$files"; then
+            echo "::error::tests or CI files would be published"
+            exit 1
+          fi
